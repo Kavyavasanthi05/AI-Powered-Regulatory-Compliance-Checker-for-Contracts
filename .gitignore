@@ -4,6 +4,11 @@ __pycache__/
 *$py.class
 # Fonts
 fonts/
+# Virtual environments
+myvenv/
+.env/
+env/
+env/
 
 # C extensions
 *.so

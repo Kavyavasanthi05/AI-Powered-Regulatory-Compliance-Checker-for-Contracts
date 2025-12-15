@@ -10,10 +10,10 @@ import logging
 from pathlib import Path
 from typing import List, Dict
 
-import streamlit as st
-from dotenv import load_dotenv
-import pandas as pd
-from fpdf import FPDF
+import streamlit as st # type: ignore
+from dotenv import load_dotenv # type: ignore
+import pandas as pd # type: ignore
+from fpdf import FPDF # type: ignore
 import requests
 import smtplib
 from email.message import EmailMessage
@@ -37,14 +37,14 @@ EMAIL_RECEIVER = os.getenv("EMAIL_RECEIVER", "")
 
 # PDF reading
 try:
-    import fitz
+    import fitz # type: ignore
 except Exception:
     fitz = None
 
 # Embedding / FAISS
 try:
-    import faiss
-    from sentence_transformers import SentenceTransformer
+    import faiss # type: ignore
+    from sentence_transformers import SentenceTransformer # type: ignore
     FAISS_AVAILABLE = True
 except Exception:
     FAISS_AVAILABLE = False
@@ -320,7 +320,7 @@ if page == "Dashboard":
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
-    st.caption("Tip: Configure email ENV variables for notifications.")
+    #st.caption("Tip: Configure email ENV variables for notifications.")
 
 # ---------------------------- Upload Contract ----------------------------
 elif page == "Upload Contract":
@@ -359,16 +359,17 @@ elif page == "Risk Analysis":
 
     if not st.session_state.contracts:
         st.info("Upload a contract first.")
+
     else:
-        # Load the contract
+        # Select contract
         c_choice = st.selectbox(
-            "Select a contract to analyze:", 
+            "Select a contract to analyze:",
             list(range(1, len(st.session_state.contracts) + 1))
         )
         idx = c_choice - 1
         contract = st.session_state.contracts[idx]
 
-        # Helper to explain weak clauses
+        # Explain weak clause
         def explain_weak_clause(title, text):
             prompt = f"""
             The following clause is weak or missing in a contract:
@@ -383,13 +384,13 @@ elif page == "Risk Analysis":
             except:
                 return "Explanation unavailable."
 
-        # Helper to score relevance between contract and regulation
+        # Relevance scoring
         def relevance_between_risk_page(contract_text: str, regulation_text: str) -> float:
             c = (contract_text or "").lower()
             r = (regulation_text or "").lower()
             if "clause not found" in r or len(r.strip()) < 50:
                 return 0.0
-            r_words = [w for w in re.findall(r"\w+", r) if len(w) > 4] 
+            r_words = [w for w in re.findall(r"\w+", r) if len(w) > 4]
             if not r_words:
                 return 0.0
             matches = sum(1 for w in set(r_words) if w in c)
@@ -403,25 +404,26 @@ elif page == "Risk Analysis":
             else:
                 return 0.0
 
-        # Run Compliance Risk Check
+        # Run risk check
         if st.button("Run Compliance Risk Check"):
             weak_clauses = []
             scores = []
 
             for reg in st.session_state.regs_list[idx]:
-                score = relevance_between_risk_page(contract, reg["text"]) 
+                score = relevance_between_risk_page(contract, reg["text"])
                 scores.append(score)
                 if score < 1.0:
                     explanation = explain_weak_clause(reg["title"], reg["text"])
                     weak_clauses.append({
-                        "title": reg["title"], 
-                        "text": reg["text"], 
-                        "score": score, 
+                        "title": reg["title"],
+                        "text": reg["text"],
+                        "score": score,
                         "reason": explanation
                     })
 
-            # Calculate overall risk
-            risk_percent = int((1 - sum(scores)/len(scores)) * 100) if scores else 0
+            # Calculate risk
+            risk_percent = int((1 - sum(scores) / len(scores)) * 100) if scores else 0
+
             if risk_percent >= 70:
                 risk_label = "🔴 High Risk"
             elif risk_percent >= 30:
@@ -429,7 +431,7 @@ elif page == "Risk Analysis":
             else:
                 risk_label = "🟢 Low Risk"
 
-            # Store in session state
+            # Store state
             st.session_state.overall_risk = risk_percent
             st.session_state.risk_label = risk_label
             st.session_state.weak_clauses = weak_clauses
@@ -437,22 +439,43 @@ elif page == "Risk Analysis":
 
             st.success("✅ Compliance Risk Check completed.")
 
-        # Display Risk Summary only after running
+        # ---------------- DISPLAY RESULTS ----------------
         if st.session_state.get("show_risk_summary"):
             st.subheader("📊 Risk Summary")
+
             st.markdown(
-                f"### Overall Risk Level \n**{st.session_state.overall_risk}%** — {st.session_state.risk_label}"
+                f"""
+                ### Overall Risk Level  
+                **{st.session_state.overall_risk}%** — {st.session_state.risk_label}
+                """
             )
+
+            # 📊 Risk Bar Graph (ONLY RISK)
+            st.markdown("#### 📈 Risk Level Visualization")
+            st.bar_chart({"Risk (%)": st.session_state.overall_risk})
+
+            # 🚦 Progress Indicator
+            st.markdown("#### 🚦 Risk Indicator")
+            st.progress(st.session_state.overall_risk / 100)
+
             st.markdown("---")
+
+            # Weak clauses
             st.subheader("⚠️ Weak / Missing Clauses")
             if st.session_state.weak_clauses:
                 for clause in st.session_state.weak_clauses:
                     st.markdown(f"### 🟠 {clause['title']}")
-                    st.text_area(f"Clause Text — {clause['title']}", value=clause['text'], height=120)
+                    st.text_area(
+                        f"Clause Text — {clause['title']}",
+                        value=clause['text'],
+                        height=120
+                    )
                     st.markdown(f"**Reason:** {clause['reason']}")
             else:
-                st.success("No weak or missing clauses. Contract meets all regulatory requirements.")
-
+                st.success(
+                    "✅ No weak or missing clauses. "
+                    "Contract meets all regulatory requirements."
+                )
 
 # ---------------------------- Regulatory Updates ----------------------------
 elif page == "Regulatory Updates":
@@ -504,107 +527,219 @@ elif page == "Regulatory Updates":
 # ---------------------------- Amendment System ----------------------------
 elif page == "Amendment System":
     st.header("🛠️ Amendment System")
+
     if not st.session_state.contracts:
         st.info("Upload a contract first.")
+
     else:
-        c_choice = st.selectbox("Select a contract:", list(range(1, len(st.session_state.contracts) + 1)))
+        c_choice = st.selectbox(
+            "Select a contract:",
+            list(range(1, len(st.session_state.contracts) + 1))
+        )
         idx = c_choice - 1
         contract_text = st.session_state.contracts[idx]
         regs = st.session_state.regs_list[idx]
+
         st.subheader("📄 Original Contract")
-        st.text_area("Contract preview", value=contract_text, height=240, disabled=True)
+        st.text_area(
+            "Contract preview",
+            value=contract_text,
+            height=240,
+            disabled=True
+        )
+
         st.markdown("---")
         st.subheader("⚙️ Run Auto-Amendment Based on Regulations")
+
         st.session_state.updated_versions.setdefault(idx, [])
         st.session_state.setdefault("last_pdf_bytes", None)
         st.session_state.setdefault("last_pdf_name", None)
+
         weak_clauses = st.session_state.get("weak_clauses", [])
+
         if not weak_clauses:
-            st.warning("No weak/missing clauses found. Run 'Risk Analysis' first to identify amendments.")
+            st.warning(
+                "No weak/missing clauses found. "
+                "Run 'Risk Analysis' first to identify amendments."
+            )
+
         else:
             with st.expander("⚠️ View Clauses Flagged for Amendment"):
                 for i, mc in enumerate(weak_clauses, start=1):
                     title = mc.get("title", "(no title)")
                     text = mc.get("text", "")
                     reason = mc.get("reason", "No reason provided.")
+
                     st.markdown(f"**{i}. {title}**")
-                    st.text_area(f"Original text — {title}", value=text or "[no original text found]", key=f"orig_amend_{idx}_{i}", height=100, disabled=True)
+                    st.text_area(
+                        f"Original text — {title}",
+                        value=text or "[no original text found]",
+                        key=f"orig_amend_{idx}_{i}",
+                        height=100,
+                        disabled=True
+                    )
                     st.markdown(f"**Reason:** *{reason}*")
                     st.markdown("---")
+
             if st.button("Apply Amendments Now"):
                 updated_contract = contract_text
                 action_log = []
                 changes = []
+
                 for mc in weak_clauses:
                     title = mc.get("title", "Untitled Clause")
                     orig_reg_text = mc.get("text", "")
                     reason = mc.get("reason", "")
+
                     with st.spinner(f"Generating amendment for: {title}..."):
                         try:
-                            improved = improve_regulation_clause(orig_reg_text, title, updated_contract) 
+                            improved = improve_regulation_clause(
+                                orig_reg_text,
+                                title,
+                                updated_contract
+                            )
                             improved = str(improved).strip() or orig_reg_text
                         except Exception as e:
                             logger.exception("LLM amendment failed: %s", e)
                             improved = orig_reg_text or f"[Improvement failed for {title}]"
+
                     action = "appended"
                     if orig_reg_text and orig_reg_text in updated_contract:
-                        updated_contract = updated_contract.replace(orig_reg_text, improved, 1)
+                        updated_contract = updated_contract.replace(
+                            orig_reg_text, improved, 1
+                        )
                         action = "replaced"
                     else:
                         updated_contract += f"\n\n### AMENDMENT: {title}\n{improved}\n"
-                        action = "appended"
-                    changes.append({"title": title, "action": action, "before": orig_reg_text, "after": improved, "reason": reason})
+
+                    changes.append({
+                        "title": title,
+                        "action": action,
+                        "before": orig_reg_text,
+                        "after": improved,
+                        "reason": reason
+                    })
                     action_log.append(f"{action.capitalize()}: {title}")
+
                 st.session_state.contracts[idx] = updated_contract
+
                 try:
-                    st.session_state.regs_list[idx] = extract_regulations_from_text(updated_contract) 
+                    st.session_state.regs_list[idx] = extract_regulations_from_text(
+                        updated_contract
+                    )
                 except Exception:
                     st.warning("Could not re-extract regulations from the updated contract.")
+
                 version_num = len(st.session_state.updated_versions[idx]) + 1
                 timestamp = int(time.time())
                 version_pdf_name = f"contract_v{version_num}_{timestamp}.pdf"
-                st.session_state.updated_versions[idx].append({"name": version_pdf_name, "text": updated_contract, "timestamp": timestamp, "changes": changes})
+
+                st.session_state.updated_versions[idx].append({
+                    "name": version_pdf_name,
+                    "text": updated_contract,
+                    "timestamp": timestamp,
+                    "changes": changes
+                })
+
                 try:
-                    pdf_bytes = save_text_as_pdf_bytes(updated_contract) 
+                    pdf_bytes = save_text_as_pdf_bytes(updated_contract)
                     st.session_state.last_pdf_bytes = pdf_bytes
                     st.session_state.last_pdf_name = version_pdf_name
                 except Exception as e:
                     pdf_bytes = None
                     st.warning(f"PDF generation failed: {e}")
+
                 st.success(f"New updated contract created: {version_pdf_name}")
+
                 st.subheader("Actions performed:")
                 for a in action_log:
                     st.markdown(f"- {a}")
+
                 if pdf_bytes:
-                    st.download_button("⬇️ Download updated contract PDF", data=pdf_bytes, file_name=version_pdf_name, mime="application/pdf")
+                    st.download_button(
+                        "⬇️ Download updated contract PDF",
+                        data=pdf_bytes,
+                        file_name=version_pdf_name,
+                        mime="application/pdf"
+                    )
 
         st.markdown("---")
         st.subheader("📁 View Updated Versions")
+
         version_list = st.session_state.updated_versions.get(idx, [])
+
         if version_list:
-            v_choice = st.selectbox("Select updated version to view:", [v["name"] for v in version_list], key=f"ver_{idx}")
-            selected = next((v for v in version_list if v["name"] == v_choice), None)
+            v_choice = st.selectbox(
+                "Select updated version to view:",
+                [v["name"] for v in version_list],
+                key=f"ver_{idx}"
+            )
+            selected = next(
+                (v for v in version_list if v["name"] == v_choice),
+                None
+            )
+
             if selected:
-                st.text_area("Updated contract text", value=selected["text"], height=300) 
+                st.text_area(
+                    "Updated contract text",
+                    value=selected["text"],
+                    height=300
+                )
+
                 with st.expander("View Amendment Details"):
                     st.markdown("**Amendments in this version:**")
                     for ch in selected.get("changes", []):
-                        st.markdown(f"- **{ch['title']}** — {ch['action']}. Reason: {ch.get('reason','')}")
+                        st.markdown(
+                            f"- **{ch['title']}** — {ch['action']}. "
+                            f"Reason: {ch.get('reason','')}"
+                        )
         else:
             st.info("No updated versions yet. Apply amendments to create one.")
+
+        # ---------------- EMAIL SECTION ----------------
         st.markdown("---")
         st.subheader("📧 Email Updated Contract")
-        if st.button("Send Latest Updated Contract via Email"):
+
+        receiver_email = st.text_input(
+            "Receiver Email Address",
+            placeholder="receiver@example.com",
+            key="receiver_email"
+        )
+
+        if st.button("📤 Send Mail"):
             if not st.session_state.get("last_pdf_bytes"):
-                st.warning("No PDF available. Generate an updated version first.")
+                st.warning(
+                    "No updated contract available. "
+                    "Please generate an updated version first."
+                )
+
+            elif not receiver_email:
+                st.warning("Please enter a receiver email address.")
+
             else:
-                subject = f"Compliance Updated – Contract "
-                body = f"Hello,\n\nThe contract has been updated.\n\nPlease review the attached updated contract PDF.\n\n"
-                sent = send_email_notification(subject, body, EMAIL_SENDER, EMAIL_PASSWORD, EMAIL_RECEIVER, attachment_bytes=st.session_state.last_pdf_bytes, attachment_name=st.session_state.last_pdf_name)
+                subject = "Compliance Updated – Contract"
+                body = (
+                    "Hello,\n\n"
+                    "The contract has been updated for compliance.\n\n"
+                    "Please find the updated contract attached.\n\n"
+                    "Regards"
+                )
+
+                sent = send_email_notification(
+                    subject=subject,
+                    body=body,
+                    sender=EMAIL_SENDER,
+                    password=EMAIL_PASSWORD,
+                    receiver=receiver_email,
+                    attachment_bytes=st.session_state.last_pdf_bytes,
+                    attachment_name=st.session_state.last_pdf_name
+                )
+
                 if sent:
-                    st.success(f"Email sent successfully to {EMAIL_RECEIVER}!")
+                    st.success(f"✅ Email sent successfully to {receiver_email}")
                 else:
-                    st.error("Failed to send email. Check your email configuration.")
+                    st.error("❌ Failed to send email. Check email configuration.")
+
 
 # ---------------------------- AI Chatbot ----------------------------
 elif page == "AI Chatbot":

@@ -7,13 +7,11 @@ import re
 import io
 import time
 import logging
-from pathlib import Path
 from typing import List, Dict
 
-import streamlit as st # type: ignore
-from dotenv import load_dotenv # type: ignore
-import pandas as pd # type: ignore
-from fpdf import FPDF # type: ignore
+import streamlit as st
+from dotenv import load_dotenv
+from fpdf import FPDF
 import requests
 import smtplib
 from email.message import EmailMessage
@@ -24,7 +22,7 @@ load_dotenv()
 logger = logging.getLogger("app_streamlit")
 logger.setLevel(logging.INFO)
 
-DEFAULT_INDEX_DIR = Path(os.getenv("INDEX_PATH", "./faiss_index"))
+#DEFAULT_INDEX_DIR = Path(os.getenv("INDEX_PATH", "./faiss_index")) # type: ignore
 DEFAULT_TOP_K = int(os.getenv("TOP_K", 4))
 DEFAULT_CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 900))
 DEFAULT_CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 150))
@@ -41,13 +39,7 @@ try:
 except Exception:
     fitz = None
 
-# Embedding / FAISS
-try:
-    import faiss # type: ignore
-    from sentence_transformers import SentenceTransformer # type: ignore
-    FAISS_AVAILABLE = True
-except Exception:
-    FAISS_AVAILABLE = False
+
 
 top_k = DEFAULT_TOP_K
 
@@ -174,40 +166,27 @@ def relevance_label(score: float) -> str:
     return "Low"
 
 # ---------------------------- Retriever ----------------------------
-@st.cache_data(show_spinner=False)
-def load_sentence_transformer_model(name="all-mpnet-base-v2"):
-    try:
-        return SentenceTransformer(name)
-    except Exception as e:
-        logger.warning("SentenceTransformer unavailable: %s", e)
-        return None
+
 
 class SimpleInMemoryRetriever:
-    def __init__(self, texts, model=None):
+    def __init__(self, texts: List[str]):
         self.texts = texts
-        self.model = model
-        if model:
-            try:
-                self.embs = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-            except Exception:
-                self.embs = None
-        else:
-            self.embs = None
 
-    def get_relevant_documents(self, query: str, k=4):
-        if self.embs is None:
-            scored = []
-            q = query.lower()
-            for t in self.texts:
-                score = sum(1 for w in set(re.findall(r"\w+", q)) if w in t.lower())
-                scored.append((score, t))
-            scored.sort(reverse=True)
-            return [type("D", (), {"page_content": doc}) for _, doc in scored[:k]]
-        import numpy as np
-        qv = self.model.encode([query], convert_to_numpy=True)[0]
-        sims = (self.embs @ qv) / (np.linalg.norm(self.embs, axis=1) * np.linalg.norm(qv) + 1e-10)
-        idx = np.argsort(-sims)[:k]
-        return [type("D", (), {"page_content": self.texts[i]}) for i in idx]
+    def get_relevant_documents(self, query: str, k: int = 4):
+        scored = []
+        q_words = set(re.findall(r"\w+", query.lower()))
+
+        for t in self.texts:
+            t_lower = t.lower()
+            score = sum(1 for w in q_words if w in t_lower)
+            scored.append((score, t))
+
+        scored.sort(reverse=True, key=lambda x: x[0])
+        return [
+            type("D", (), {"page_content": doc})
+            for _, doc in scored[:k]
+        ]
+
 
 # ---------------------------- LLM ----------------------------
 def call_groq(prompt: str, max_tokens=1500, temperature=0.25) -> str:

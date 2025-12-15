@@ -759,7 +759,7 @@ elif page == "AI Chatbot":
             prompt = f"User question: {q}\n\nContext:\n{context}\n\nAnswer concisely."
             ans = call_groq(prompt)
             st.text_area("Response:", value=ans, height=200)
-
+#ELSE
 # ---------------------------- End ----------------------------
 else:
     st.error("Unknown page selected.")
